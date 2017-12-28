@@ -1,0 +1,123 @@
+#!/bin/bash
+#=====================================
+# Made by: Mustaque
+# custom script for insatlling
+# LINUX APACHE MYSQL/MARIADB PHP
+#=====================================
+
+
+# colors combination
+COLOR_NC='\e[0m' # No Color
+COLOR_WHITE='\e[97m'
+COLOR_BLACK='\e[30m'
+COLOR_BLUE='\e[34m'
+COLOR_LIGHT_BLUE='\e[94m'
+COLOR_GREEN='\e[32m'
+COLOR_LIGHT_GREEN='\e[92m'
+COLOR_CYAN='\e[36m'
+COLOR_LIGHT_CYAN='\e[96m'
+COLOR_RED='\e[31m'
+COLOR_LIGHT_RED='\e[91m'
+COLOR_YELLOW='\e[33m'
+COLOR_GRAY='\e[9999999990m'
+COLOR_LIGHT_GRAY='\e[37m'
+COLOR_MAGENTA='\e[35m]'
+# run as root.
+if [[ $UID -ne 0 ]];then
+  echo -e "${COLOR_LIGHT_RED}[!]run this script as root."
+  exit 1
+fi
+
+# check if apache2 installed
+apache=$(pacman -Qqe | grep apache)
+if [[ "$apache"=="apache" ]];then
+  echo -e "${COLOR_YELLOW}[!]apache is already installed"
+else
+  echo -e "${COLOR_LIGHT_BLUE}[!]installing apache server."
+  pacman -S apache --noconfirm > /dev/null
+fi
+
+echo
+echo -e "${COLOR_LIGHT_BLUE}[*]Commenting out the module"
+sed -i 's/^#LoadModule unique_id_module modules\/mod_unique_id.so/LoadModule unique_id_module modules\/mod_unique_id.so/g' /etc/httpd/conf/httpd.conf
+echo
+echo -e "${COLOR_YELLOW}[!]restarting httpd server"
+systemctl restart httpd
+
+
+# check status of httpd server
+echo
+echo -e "${COLOR_YELLOW}[!]checking httpd status"
+systemctl status httpd > /tmp/httpd
+httpd_status=$(sed -n 3p /tmp/httpd | awk '{print $2, $3}')
+if [[ $httpd_status == 'active (running)' ]]; then
+  echo -e "${COLOR_GREEN}[*]httpd server is running well."
+else
+  echo -e "${COLOR_RED}[!]oops! httpd server error."
+fi
+
+
+# mariaDB installation
+echo -e "${COLOR_LIGHT_BLUE}[!]mariadb installation begins..."
+pacman -S mysql --noconfirm > /dev/null
+mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql > /dev/null
+
+# restart mysqld
+echo
+echo -e "${COLOR_YELLOW}[!]restart mysqld"
+systemctl start mysqld
+
+# check status of mysqld
+systemctl status mysqld > /tmp/mysqld
+mysqld_status=$(sed -n 3p /tmp/mysqld | awk'{print $2, $3}')
+if [[ $mysqld_status == 'active (running)' ]];then
+  echo -e "${COLOR_GREEN}[*]mysqld running successfully"
+  exit 3
+fi
+
+echo
+echo -e "${COLOR_MAGENTA}[!]Setup mysqld root user password"
+mysql_secure_installation
+
+# install php
+echo -e  "${COLOR_LIGHT_BLUE}[*]PHP installation begin..."
+pacman -S php php-apache --noconfirm > /dev/null
+
+echo "
+LoadModule mpm_prefork_module modules/mod_mpm_prefork.so
+LoadModule php7_module modules/libphp7.so
+AddHandler php7-script php
+Include conf/extra/php7_module.conf" >> /etc/httpd/conf/httpd.conf
+
+echo "<?php phpinfo(); ?>" > /srv/http/phpinfo.php
+
+echo
+echo -e "${COLOR_YELLOW}[!]restarting httpd server"
+systemctl restart httpd
+
+# installing phpmyadmin
+echo -e "${COLOR_YELLOW}[!]installing phpmyadmin"
+pacman -S phpmyadmin --noconfirm > /dev/null
+
+sed -i 's/^#extension=bz2.so/extension=bz2.so/g' /etc/php/php.ini
+sed -i 's/^#extension=mcrypt.so/extension=mcrypt.so/g' /etc/php/php.ini
+sed -i 's/^#extension=mysqli.so/extension=mysqli.so/g' /etc/php/php.ini
+
+echo -e "${COLOR_LIGHT_BLUE}[*]Adding phpmyadmin config file"
+echo "
+Alias /phpmyadmin "/usr/share/webapps/phpMyAdmin"
+ <Directory "/usr/share/webapps/phpMyAdmin">
+  DirectoryIndex index.php
+  AllowOverride All
+  Options FollowSymlinks
+  Require all granted
+ </Directory>
+" >> /etc/httpd/conf/extra/phpmyadmin.conf
+
+# adding config file to apache config file
+echo "#PHPMYADMIN CONFIG" >> /etc/httpd/conf/httpd.conf
+echo "Include conf/extra/phpmyadmin.conf" >> /etc/httpd/conf/httpd.conf
+
+echo -e "${COLOR_LIGHT_BLUE}[*]restarting httpd server"
+systemctl restart httpd
+echo -e "${COLOR_LIGHT_GREEN}[*]VOLLA! LAMP IS INSTALLED SUCCESSFULLY."

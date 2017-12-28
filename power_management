@@ -1,0 +1,112 @@
+#!/bin/bash
+
+#===========================================
+# Made by Mustaque Ahmed
+# Device Lenovo Ideapad 320E XL
+# Config:
+# RAM: 8GB
+# Processor: i5 7th gen
+# GPU: Intel, nVidia
+# Script for tweaking power management
+#===========================================
+
+# colors combination
+COLOR_NC='\e[0m' # No Color
+COLOR_WHITE='\e[97m'
+COLOR_BLACK='\e[30m'
+COLOR_BLUE='\e[34m'
+COLOR_LIGHT_BLUE='\e[94m'
+COLOR_GREEN='\e[32m'
+COLOR_LIGHT_GREEN='\e[92m'
+COLOR_CYAN='\e[36m'
+COLOR_LIGHT_CYAN='\e[96m'
+COLOR_RED='\e[31m'
+COLOR_LIGHT_RED='\e[91m'
+COLOR_YELLOW='\e[33m'
+COLOR_GRAY='\e[90m'
+COLOR_LIGHT_GRAY='\e[37m'
+COLOR_MAGENTA='\e[35m'
+
+# run as root.
+if [[ $UID -ne 0 ]];then
+  echo -e "${COLOR_LIGHT_RED}[!]run this script as root."
+  exit 1
+fi
+
+# installing tools
+echo -e "${COLOR_YELLOW}[!]installing power management tools"
+echo -e "${COLOR_LIGHT_CYAN}[!]installing powertop"
+pacman -S powertop --noconfirm > /dev/null
+echo -e "${COLOR_YELLOW}[!]would you like to check installation(y/n)?"
+read input
+case "$input" in
+  "y")
+    status=$(pacman -Qqe | grep powertop)
+    if [[ "$status"=="powertop" ]]
+    then
+      echo -e "${COLOR_LIGHT_GREEN}[*]powertop installed successfully!"
+    else
+      echo -e "${COLOR_RED}[!]Package is not installed."
+    fi
+    ;;
+
+  "n")
+    echo -e "${COLOR_LIGHT_GRAY}[*]setting up others modules!"
+    ;;
+
+  *)
+    :
+    exit 1
+esac
+
+# audio
+echo -e "${COLOR_LIGHT_CYAN}[!]turning audio power saving mode on!"
+echo "
+# audio power saving mode
+options snd-hda-intel single_cmd=1
+options snd-hda-intel probe_mask=1
+" >> /etc/modprobe.d/audio_powersave.conf
+
+# blacklist hdmi
+echo "# Blacklist HDMI module" >> /etc/modprobe.d/blacklist.conf
+echo "snd_hda_codec_hdmi" >> /etc/modprobe.d/blacklist.conf
+
+# bluetooth
+echo -e "${COLOR_YELLOW}[!]Select any option for bluetooth:"
+echo "1. Blacklist"
+echo "2. Temp off"
+echo "3. Udev Rule"
+read opt
+if [[ "$opt" -eq 1 ]]
+then
+  echo "# Blacklisting Bluetooth module" >> /etc/modprobe.d/blacklist.conf
+  echo "blacklist btus\nblacklist bluetooth" >> /etc/modprobe.d/blacklist.conf
+elif [[ "$opt" -eq 2 ]]
+then
+  rfkill block bluetooth
+elif [[ "$opt" -eq 3 ]]
+then
+  echo -e "${COLOR_LIGHT_CYAN}[!]adding udev rule"
+  echo "disable bluetooth\nSUBSYSTEM==\"rfkill\", ATTR{type}==\"bluetooth\", ATTR{state}=\"0\"" > /etc/udev/rules.d/50-bluetooth.rules
+else
+  :
+fi
+
+# webcam
+echo -e "${COLOR_YELLOW}[!]Blacklisting webcamera!"
+echo "blacklist uvcvideo" >> /etc/modprobe.d/blacklist.conf
+
+# writeback time
+echo -e "${COLOR_MAGENTA}[!]Increasing writeback time to 60 sec"
+echo "vm.dirty_writeback_centisecs = 6000" > /etc/sysctl.d/dirty.conf
+
+# laptop mode
+echo -e "${COLOR_NC}[!]Setting up knob value 5 disk drive"
+echo "vm.laptop_mode = 5" > /etc/sysctl.d/laptop.conf
+
+# usb autosuspend
+echo -e "${COLOR_YELLOW}[!]Enabling USB suspend"
+echo "ACTION==\"add\", SUBSYSTEM==\"usb\", TEST==\"power/control\", ATTR{power/control}=\"auto\"" > /etc/udev/rules.d/50-usb_power_save.rules
+
+# last stage
+echo -e "${COLOR_GREEN}[*]Volla! All tweak is done\nReboot to take effects."

@@ -5,7 +5,7 @@ Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
 kiwisolver==1.1.0
 mstranslator==0.3.2
-nltk==3.4.4
+nltk==3.4.5
 numpy==1.16.4
 pandas==0.24.2
 pandocfilters==1.4.2
